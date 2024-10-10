@@ -3,6 +3,11 @@
 # Step 1: Define the Azure provider
 provider "azurerm" {
   features {}
+
+  subscription_id = var.subscription_id
+  client_id       = var.client_id
+  client_secret   = var.client_secret
+  tenant_id       = var.tenant_id
 }
 
 # Step 2: Create a Resource Group
@@ -53,16 +58,13 @@ resource "kubernetes_secret" "docker_secret" {
   }
 
   data = {
-    ".dockerconfigjson" = base64encode(jsonencode({
+    ".dockerconfigjson" = jsonencode({
       auths = {
         "https://index.docker.io/v1/" = {
-          username = var.docker_username
-          password = var.docker_password
-          email    = var.docker_email
           auth     = base64encode("${var.docker_username}:${var.docker_password}")
         }
       }
-    }))
+    })
   }
 
   type = "kubernetes.io/dockerconfigjson"
