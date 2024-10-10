@@ -1,15 +1,8 @@
 # main.tf
 
-# Step 1: Define the provider
+# Step 1: Define the Azure provider
 provider "azurerm" {
   features {}
-}
-
-provider "kubernetes" {
-  host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
-  client_certificate      = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_certificate)
-  client_key              = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_key)
-  cluster_ca_certificate  = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.cluster_ca_certificate)
 }
 
 # Step 2: Create a Resource Group
@@ -18,16 +11,7 @@ resource "azurerm_resource_group" "aks_rg" {
   location = "East US"
 }
 
-# Step 3: Create an Azure Container Registry (optional, skip if using Docker Hub)
-resource "azurerm_container_registry" "acr" {
-  name                = "myacrregistry"
-  resource_group_name = azurerm_resource_group.aks_rg.name
-  location            = azurerm_resource_group.aks_rg.location
-  sku                 = "Basic"
-  admin_enabled       = true
-}
-
-# Step 4: Create the AKS cluster
+# Step 3: Create the AKS Cluster
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = "myAKSCluster"
   location            = azurerm_resource_group.aks_rg.location
@@ -43,10 +27,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
   identity {
     type = "SystemAssigned"
   }
+}
 
-  network_profile {
-    network_plugin = "azure"
-  }
+# Step 4: Configure the Kubernetes Provider
+provider "kubernetes" {
+  host                   = azurerm_kubernetes_cluster.aks.kube_config.0.host
+  client_certificate     = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_certificate)
+  client_key             = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.client_key)
+  cluster_ca_certificate = base64decode(azurerm_kubernetes_cluster.aks.kube_config.0.cluster_ca_certificate)
 }
 
 # Step 5: Create a Kubernetes Namespace
@@ -57,7 +45,7 @@ resource "kubernetes_namespace" "example" {
 }
 
 # Step 6: (Optional) Create Kubernetes Secret for Private Docker Registry
-# This is needed if the image is private (replace the Docker Hub example with Azure Container Registry if needed).
+# Use variables for sensitive data
 resource "kubernetes_secret" "docker_secret" {
   metadata {
     name      = "regcred"
@@ -68,10 +56,10 @@ resource "kubernetes_secret" "docker_secret" {
     ".dockerconfigjson" = base64encode(jsonencode({
       auths = {
         "https://index.docker.io/v1/" = {
-          username = "myusername"
-          password = "mypassword"
-          email    = "myemail@example.com"
-          auth     = base64encode("myusername:mypassword")
+          username = var.docker_username
+          password = var.docker_password
+          email    = var.docker_email
+          auth     = base64encode("${var.docker_username}:${var.docker_password}")
         }
       }
     }))
@@ -104,17 +92,17 @@ resource "kubernetes_deployment" "myapp_deployment" {
       }
 
       spec {
+        # Correct placement of image_pull_secrets
+        image_pull_secrets {
+          name = kubernetes_secret.docker_secret.metadata[0].name
+        }
+
         container {
           name  = "myapp-container"
-          image = "myusername/myapp:latest" # Change this to your Docker image
+          image = "lukejagg/sandbox:latest" # Replace with your Docker image
 
           port {
             container_port = 80
-          }
-
-          # Use the secret for pulling images from private registry
-          image_pull_secrets {
-            name = kubernetes_secret.docker_secret.metadata[0].name
           }
         }
       }
