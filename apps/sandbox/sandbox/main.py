@@ -73,11 +73,12 @@ class ExecutionMode(str, Enum):
 
 
 class Process:
-    def __init__(self, pid):
+    def __init__(self, pid, process=None, stdout=None, stderr=None):
         self.pid = pid
+        self.process = process  # Store the actual asyncio subprocess
         self.exit_code = None
-        self._stdout = None
-        self._stderr = None
+        self._stdout = stdout
+        self._stderr = stderr
 
     @property
     def outputs(self):
@@ -151,9 +152,6 @@ class SessionManager:
 
 session_manager = SessionManager()
 
-# Dictionary to track active processes
-active_processes = {}
-
 
 @app.post("/initialize")
 async def initialize(init_data: InitType):
@@ -161,6 +159,121 @@ async def initialize(init_data: InitType):
     session_path = init_data.path or "/default/path"
     session_manager.create_session(session_id, session_path)
     return InitResponse(session_id=session_id)
+
+
+@app.post("/run_command")
+async def run_command(data: dict):
+    session_id = data.get("session_id")
+    command = data.get("command")
+    mode = data.get("mode", ExecutionMode.WAIT)
+    timeout = data.get("timeout", 10)
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    if mode == ExecutionMode.STREAM:
+        process = await asyncio.create_subprocess_shell(
+            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        process_obj = Process(process.pid, process, process.stdout, process.stderr)
+        session_manager.add_process(session_id, process_obj)
+        return {"process_id": process.pid}
+
+    elif mode == ExecutionMode.WAIT:
+        try:
+            result = subprocess.run(
+                command, shell=True, capture_output=True, text=True, timeout=timeout
+            )
+            # No need to create a Process object for WAIT mode
+            return {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "exit_code": result.returncode,
+                "finished": result.returncode == 0,
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "error": "Command timed out",
+                "finished": False,
+            }
+
+    elif mode == ExecutionMode.BACKGROUND:
+        process = await asyncio.create_subprocess_shell(
+            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        process_obj = Process(process.pid, process, process.stdout, process.stderr)
+        session_manager.add_process(session_id, process_obj)
+        return {"process_id": process.pid}
+
+
+@sio.on("start_command_stream")
+async def start_command_stream(sid, data):
+    session_id = data.get("session_id")
+    process_id = data.get("process_id")
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    process: Process = session.get_process(process_id)
+    if not process:
+        raise HTTPException(status_code=404, detail="Process not found")
+
+    async def stream_output():
+        try:
+            while True:
+                line = await process._stdout.readline()
+                if not line:
+                    break
+                await sio.emit(
+                    "command_output",
+                    {
+                        "output": line.decode(),
+                        "session_id": session_id,
+                        "process_id": process_id,
+                    },
+                    room=session.sid,
+                )
+        except Exception as e:
+            print(f"Error during streaming: {e}")
+        finally:
+            await process.process.wait()  # Ensure the process is waited on
+            process.exit_code = process.process.returncode
+            session_manager.remove_process(session_id, process)
+            await sio.emit(
+                "command_exit",
+                {
+                    "exit_code": process.exit_code,
+                    "session_id": session_id,
+                    "process_id": process_id,
+                },
+                room=session.sid,
+            )
+
+    asyncio.create_task(stream_output())
+
+
+@app.post("/kill_command")
+async def kill_command(data: dict):
+    session_id = data.get("session_id")
+    process_id = data.get("process_id")
+
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    process = session.get_process(process_id)
+    if process:
+        process.terminate()
+        await process.wait()
+        session.remove_process(process)
+        return {
+            "status": "killed",
+            "exit_code": process.returncode,
+        }
+    else:
+        raise HTTPException(status_code=404, detail="No such process")
 
 
 @sio.on("connect")
@@ -181,96 +294,6 @@ async def sio_initialize(sid, data):
     )
 
 
-@sio.on("run_command")
-async def run_command(sid, data):
-    command = data.get("command")
-    mode = data.get("mode", ExecutionMode.WAIT)
-    timeout = data.get("timeout", 10)
-
-    session = session_manager.get_session_by_sid(sid)
-    if not session:
-        raise HTTPException(status_code=400, detail="Session not found")
-
-    session_id = session.session_id
-
-    if mode == ExecutionMode.STREAM:
-        process = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        process_obj = Process(process.pid)
-        session_manager.add_process(session_id, process_obj)
-
-        while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
-            await sio.emit(
-                "command_output",
-                {
-                    "output": line.decode(),
-                    "session_id": session_id,
-                    "process_id": process.pid,
-                },
-                room=sid,
-            )
-
-        await process.wait()
-        process_obj.exit_code = process.returncode
-        session_manager.remove_process(session_id, process_obj)
-        await sio.emit(
-            "command_exit",
-            {
-                "exit_code": process.returncode,
-                "session_id": session_id,
-                "process_id": process.pid,
-            },
-            room=sid,
-        )
-
-    elif mode == ExecutionMode.WAIT:
-        try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, timeout=timeout
-            )
-            process_obj = Process(result.pid)
-            process_obj.update_outputs(result.stdout, result.stderr)
-            process_obj.exit_code = result.returncode
-            session_manager.add_process(session_id, process_obj)
-            await sio.emit(
-                "command_result",
-                {
-                    "stdout": result.stdout,
-                    "stderr": result.stderr,
-                    "exit_code": result.returncode,
-                    "finished": result.returncode == 0,
-                    "session_id": session_id,
-                },
-                room=sid,
-            )
-        except subprocess.TimeoutExpired:
-            await sio.emit(
-                "command_error",
-                {
-                    "error": "Command timed out",
-                    "finished": False,
-                    "session_id": session_id,
-                },
-                room=sid,
-            )
-
-    elif mode == ExecutionMode.BACKGROUND:
-        process = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        process_obj = Process(process.pid)
-        session_manager.add_process(session_id, process_obj)
-        await sio.emit(
-            "background_started",
-            {"process_id": process.pid, "session_id": session_id},
-            room=sid,
-        )
-
-
 @sio.on("check_status")
 async def check_status(sid, data):
     process_id = data.get("process_id")
@@ -284,40 +307,6 @@ async def check_status(sid, data):
         )
     else:
         await sio.emit("status", {"running": False, "session_id": None}, room=sid)
-
-
-@sio.on("kill_command")
-async def kill_command(sid, data):
-    process_id = data.get("process_id")
-    session = session_manager.get_session_by_sid(sid)
-
-    if session:
-        process = session.get_process(process_id)
-        if process:
-            process.terminate()
-            await process.wait()
-            session.remove_process(process)
-            await sio.emit(
-                "command_killed",
-                {
-                    "status": "killed",
-                    "session_id": session.session_id,
-                    "exit_code": process.returncode,
-                },
-                room=sid,
-            )
-        else:
-            await sio.emit(
-                "command_error",
-                {"error": "No such process", "session_id": session.session_id},
-                room=sid,
-            )
-    else:
-        await sio.emit(
-            "command_error",
-            {"error": "No such session", "session_id": None},
-            room=sid,
-        )
 
 
 @sio.on("disconnect")
