@@ -22,6 +22,7 @@ Repository = "https://github.com/lukejagg/kubebox"
 [tool.poetry.dependencies]
 python = "^3.8"
 kubernetes = "^31.0.0"
+fastapi-socketio = "^0.0.10"
 
 [build-system]
 requires = ["poetry-core"]

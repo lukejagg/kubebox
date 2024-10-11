@@ -9,6 +9,8 @@ readme = "README.md"
 python = "^3.12"
 fastapi = {extras = ["standard"], version = "^0.115.0"}
 uvicorn = "^0.31.1"
+python-socketio = {extras = ["client"], version = "^5.11.4"}
+fastapi-socketio = "^0.0.10"
 
 
 [tool.poetry.group.dev.dependencies]
