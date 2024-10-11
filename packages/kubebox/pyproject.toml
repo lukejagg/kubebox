@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "kubebox"
+version = "0.0.0"
+description = "Open source k8s sandbox for LLM agents"
+authors = ["Lucas Jaggernauth <lukejagg@gmail.com>"]
+readme = "README.md"
+repository = "https://github.com/lukejagg/kubebox"
+classifiers = [
+    "Typing :: Typed",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/lukejagg/kubebox"
+Repository = "https://github.com/lukejagg/kubebox"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+kubernetes = "^31.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
