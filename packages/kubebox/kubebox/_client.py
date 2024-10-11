@@ -198,6 +198,22 @@ class SandboxClient:
         # Ensure all sessions are closed
         await self.sio.eio.disconnect()
 
+    async def get_file(self, file_path: str) -> str:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.url}/get_file", params={"file_path": file_path}) as response:
+                if response.status == 200:
+                    return await response.text()
+                else:
+                    raise Exception(f"Failed to get file: {response.status}")
+
+    async def get_all_file_paths(self) -> list[str]:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{self.url}/get_all_file_paths") as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"Failed to get file paths: {response.status}")
+
 
 if __name__ == "__main__":
 
@@ -243,6 +259,20 @@ if __name__ == "__main__":
 
         # Disconnect from the server
         await client.disconnect()
+
+        # Example usage of get_file
+        try:
+            file_content = await client.get_file("path/to/your/file.txt")
+            print("File Content:", file_content)
+        except Exception as e:
+            print(e)
+
+        # Example usage of get_all_file_paths
+        try:
+            file_paths = await client.get_all_file_paths()
+            print("File Paths:", file_paths)
+        except Exception as e:
+            print(e)
 
     # Run the main function
     asyncio.run(main())

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kubebox"
-version = "0.0.0"
+version = "0.0.3"
 description = "Open source k8s sandbox for LLM agents"
 authors = ["Lucas Jaggernauth <lukejagg@gmail.com>"]
 readme = "README.md"
@@ -21,9 +21,9 @@ Repository = "https://github.com/lukejagg/kubebox"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-kubernetes = "^31.0.0"
+kubernetes = "^30.0.0"
 fastapi-socketio = "^0.0.10"
-aiohttp = "^3.10.10"
+aiohttp = "^3.10.0"
 
 [build-system]
 requires = ["poetry-core"]

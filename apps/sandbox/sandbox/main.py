@@ -22,6 +22,8 @@ import socketio
 import subprocess
 import asyncio
 import uuid
+from fastapi.responses import FileResponse
+import os
 
 app = FastAPI()
 
@@ -338,3 +340,31 @@ async def read_root():
 @app.get("/items/{item_id}")
 async def read_item(item_id: int):
     return {"item_id": item_id}
+
+
+@app.get("/get_file")
+async def get_file(session_id: str, file_path: str):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    full_path = os.path.join(session.path, file_path)
+    if not os.path.isfile(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(full_path)
+
+
+@app.get("/get_all_file_paths")
+async def get_all_file_paths(session_id: str):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    file_paths = []
+    for root, _, files in os.walk(session.path):
+        for file in files:
+            relative_path = os.path.relpath(os.path.join(root, file), session.path)
+            file_paths.append(relative_path)
+
+    return file_paths
