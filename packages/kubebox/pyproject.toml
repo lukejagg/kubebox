@@ -23,6 +23,7 @@ Repository = "https://github.com/lukejagg/kubebox"
 python = "^3.8"
 kubernetes = "^31.0.0"
 fastapi-socketio = "^0.0.10"
+aiohttp = "^3.10.10"
 
 [build-system]
 requires = ["poetry-core"]

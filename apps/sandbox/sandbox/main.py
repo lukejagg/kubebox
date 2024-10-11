@@ -15,14 +15,16 @@ Features:
 6. Emit session-related events and results back to the client.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from enum import Enum
 import socketio
 import subprocess
 import asyncio
 import uuid
 
 app = FastAPI()
+
 
 class SocketManager:
     def __init__(self):
@@ -31,7 +33,9 @@ class SocketManager:
         self.app: FastAPI = None
 
     def initialize(self, app: FastAPI):
-        self.sio = socketio.AsyncServer(async_mode="asgi", max_http_buffer_size=10_000_000, cors_allowed_origins="*")
+        self.sio = socketio.AsyncServer(
+            async_mode="asgi", max_http_buffer_size=10_000_000, cors_allowed_origins="*"
+        )
         self.socket_app = socketio.ASGIApp(socketio_server=self.sio)
         self.app = app
         self.app.mount("/socket.io", self.socket_app)
@@ -40,6 +44,7 @@ class SocketManager:
         def wrapper(func):
             self.sio.on(event)(func)
             return func
+
         return wrapper
 
     async def emit(self, *args, **kwargs):
@@ -47,18 +52,115 @@ class SocketManager:
         print(f"Emitting event {kwargs}")
         await self.sio.emit(*args, **kwargs)
 
+
 sio = SocketManager()
 sio.initialize(app)
 
 
 class InitType(BaseModel):
+    session_id: str
     path: str
-    github_url: str | None = None
-    from_scratch: bool | None = None
 
+
+class InitResponse(BaseModel):
+    session_id: str
+
+
+class ExecutionMode(str, Enum):
+    WAIT = "wait"
+    BACKGROUND = "background"
+    STREAM = "stream"
+
+
+class Process:
+    def __init__(self, pid):
+        self.pid = pid
+        self.exit_code = None
+        self._stdout = None
+        self._stderr = None
+
+    @property
+    def outputs(self):
+        return self._stdout
+
+    @property
+    def errors(self):
+        return self._stderr
+
+    def update_outputs(self, stdout, stderr):
+        self._stdout = stdout
+        self._stderr = stderr
+
+
+class Session:
+    def __init__(self, session_id, path, sid=None):
+        self.session_id = session_id
+        self.path = path
+        self.sid = sid
+        self.active_processes = {}
+
+    def set_sid(self, sid):
+        self.sid = sid
+
+    def add_process(self, process):
+        self.active_processes[process.pid] = process
+
+    def remove_process(self, process):
+        self.active_processes.pop(process.pid, None)
+
+    def get_process(self, process_id):
+        return self.active_processes.get(process_id)
+
+
+class SessionManager:
+    def __init__(self):
+        self.sessions = {}
+
+    def create_session(self, session_id, path):
+        self.sessions[session_id] = Session(session_id, path)
+
+    def get_session(self, session_id):
+        return self.sessions.get(session_id)
+
+    def add_process(self, session_id, process):
+        session = self.get_session(session_id)
+        if session:
+            session.add_process(process)
+
+    def remove_process(self, session_id, process):
+        session = self.get_session(session_id)
+        if session:
+            session.remove_process(process)
+
+    def get_process(self, session_id, process_id):
+        session = self.get_session(session_id)
+        if session:
+            return session.get_process(process_id)
+
+    def set_session_sid(self, session_id, sid):
+        session = self.get_session(session_id)
+        if session:
+            session.set_sid(sid)
+
+    def get_session_by_sid(self, sid):
+        for session in self.sessions.values():
+            if session.sid == sid:
+                return session
+        return None
+
+
+session_manager = SessionManager()
 
 # Dictionary to track active processes
 active_processes = {}
+
+
+@app.post("/initialize")
+async def initialize(init_data: InitType):
+    session_id = init_data.session_id
+    session_path = init_data.path or "/default/path"
+    session_manager.create_session(session_id, session_path)
+    return InitResponse(session_id=session_id)
 
 
 @sio.on("connect")
@@ -67,25 +169,36 @@ async def connect(sid, environ):
 
 
 @sio.on("initialize")
-async def initialize(sid, data):
-    init_type = InitType(**data)
-    session_path = init_type.path or "/default/path"
-    # Store session_path in a session store if needed
-    await sio.emit("initialized", {"status": "success"}, room=sid)
+async def sio_initialize(sid, data):
+    session_id = data.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+
+    session_manager.set_session_sid(session_id, sid)
+
+    await sio.emit(
+        "initialized", {"status": "success", "session_id": session_id}, room=sid
+    )
 
 
 @sio.on("run_command")
 async def run_command(sid, data):
     command = data.get("command")
-    streaming = data.get("streaming", False)
+    mode = data.get("mode", ExecutionMode.WAIT)
     timeout = data.get("timeout", 10)
-    session_id = str(uuid.uuid4())  # Generate a unique session ID
 
-    if streaming:
+    session = session_manager.get_session_by_sid(sid)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    session_id = session.session_id
+
+    if mode == ExecutionMode.STREAM:
         process = await asyncio.create_subprocess_shell(
             command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        active_processes[session_id] = process
+        process_obj = Process(process.pid)
+        session_manager.add_process(session_id, process_obj)
 
         while True:
             line = await process.stdout.readline()
@@ -93,23 +206,36 @@ async def run_command(sid, data):
                 break
             await sio.emit(
                 "command_output",
-                {"output": line.decode(), "session_id": session_id},
+                {
+                    "output": line.decode(),
+                    "session_id": session_id,
+                    "process_id": process.pid,
+                },
                 room=sid,
             )
 
         await process.wait()
-        del active_processes[session_id]
+        process_obj.exit_code = process.returncode
+        session_manager.remove_process(session_id, process_obj)
         await sio.emit(
             "command_exit",
-            {"exit_code": process.returncode, "session_id": session_id},
+            {
+                "exit_code": process.returncode,
+                "session_id": session_id,
+                "process_id": process.pid,
+            },
             room=sid,
         )
 
-    else:
+    elif mode == ExecutionMode.WAIT:
         try:
             result = subprocess.run(
                 command, shell=True, capture_output=True, text=True, timeout=timeout
             )
+            process_obj = Process(result.pid)
+            process_obj.update_outputs(result.stdout, result.stderr)
+            process_obj.exit_code = result.returncode
+            session_manager.add_process(session_id, process_obj)
             await sio.emit(
                 "command_result",
                 {
@@ -132,38 +258,65 @@ async def run_command(sid, data):
                 room=sid,
             )
 
+    elif mode == ExecutionMode.BACKGROUND:
+        process = await asyncio.create_subprocess_shell(
+            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        process_obj = Process(process.pid)
+        session_manager.add_process(session_id, process_obj)
+        await sio.emit(
+            "background_started",
+            {"process_id": process.pid, "session_id": session_id},
+            room=sid,
+        )
+
 
 @sio.on("check_status")
 async def check_status(sid, data):
-    session_id = data.get("session_id")
-    process = active_processes.get(session_id)
+    process_id = data.get("process_id")
+    session = session_manager.get_session_by_sid(sid)
 
-    if process:
-        running = process.returncode is None
+    if session:
+        process = session.get_process(process_id)
+        running = process and process.returncode is None
         await sio.emit(
-            "status", {"running": running, "session_id": session_id}, room=sid
+            "status", {"running": running, "session_id": session.session_id}, room=sid
         )
     else:
-        await sio.emit("status", {"running": False, "session_id": session_id}, room=sid)
+        await sio.emit("status", {"running": False, "session_id": None}, room=sid)
 
 
 @sio.on("kill_command")
 async def kill_command(sid, data):
-    session_id = data.get("session_id")
-    process = active_processes.get(session_id)
+    process_id = data.get("process_id")
+    session = session_manager.get_session_by_sid(sid)
 
-    if process:
-        process.terminate()
-        await process.wait()
-        del active_processes[session_id]
-        await sio.emit(
-            "killed",
-            {"session_id": session_id, "exit_code": process.returncode},
-            room=sid,
-        )
+    if session:
+        process = session.get_process(process_id)
+        if process:
+            process.terminate()
+            await process.wait()
+            session.remove_process(process)
+            await sio.emit(
+                "command_killed",
+                {
+                    "status": "killed",
+                    "session_id": session.session_id,
+                    "exit_code": process.returncode,
+                },
+                room=sid,
+            )
+        else:
+            await sio.emit(
+                "command_error",
+                {"error": "No such process", "session_id": session.session_id},
+                room=sid,
+            )
     else:
         await sio.emit(
-            "error", {"error": "No such session", "session_id": session_id}, room=sid
+            "command_error",
+            {"error": "No such session", "session_id": None},
+            room=sid,
         )
 
 
