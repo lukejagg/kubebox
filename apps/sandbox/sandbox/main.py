@@ -92,6 +92,22 @@ class Process:
         self._stdout = stdout
         self._stderr = stderr
 
+    @property
+    def returncode(self):
+        # Ensure the returncode is fetched from the actual process
+        if self.process:
+            return self.process.returncode
+        return self.exit_code
+
+    async def wait(self):
+        if self.process:
+            await self.process.wait()
+            self.exit_code = self.process.returncode
+
+    def terminate(self):
+        if self.process:
+            self.process.terminate()
+
 
 class Session:
     def __init__(self, session_id, path, sid=None):
@@ -238,7 +254,7 @@ async def start_command_stream(sid, data):
         except Exception as e:
             print(f"Error during streaming: {e}")
         finally:
-            await process.process.wait()  # Ensure the process is waited on
+            await process.wait()  # Ensure the process is waited on
             process.exit_code = process.process.returncode
             session_manager.remove_process(session_id, process)
             await sio.emit(

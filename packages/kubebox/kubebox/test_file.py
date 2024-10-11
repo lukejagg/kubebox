@@ -52,7 +52,7 @@ class BackgroundProcess(BaseModel):
     process_id: Union[str, int]
 
 
-class SessionManager:
+class SandboxClient:
     def __init__(self, url: str = "http://localhost:80"):
         self.url = url
         self.sio = socketio.AsyncClient()
@@ -153,9 +153,29 @@ class SessionManager:
                 break
             yield output
 
-    async def check_status(self) -> Status:
-        await self.sio.emit("check_status", {})
-        return Status(running=True)  # Placeholder for actual status
+    async def check_status(self, session_id: str, process_id: str) -> Status:
+        # Create an event to wait for the status response
+        status_event = asyncio.Event()
+        status_data = {}
+
+        async def on_status(data):
+            nonlocal status_data
+            status_data = data
+            status_event.set()
+
+        # Temporarily override the on_status handler
+        self.sio.on("status", on_status)
+
+        # Emit the check_status event with session_id and process_id
+        await self.sio.emit("check_status", {"session_id": session_id, "process_id": process_id})
+
+        # Wait for the status response
+        await status_event.wait()
+
+        # Restore the original on_status handler
+        self.sio.on("status", self.on_status)
+
+        return Status(**status_data)
 
     async def kill_command(self, session_id: str, process_id: str) -> CommandKilled:
         async with aiohttp.ClientSession() as session:
@@ -178,43 +198,43 @@ class SessionManager:
 
 
 async def main():
-    manager = SessionManager(url="http://localhost:80")
-    await manager.connect()
+    client = SandboxClient(url="http://localhost:80")
+    await client.connect()
 
     # Initialize a session
-    await manager.initialize_session("your-session-id-here", "/some/path")
+    await client.initialize_session("your-session-id-here", "/some/path")
 
     # Run a command in STREAM mode
-    async for output in await manager.run_command(
+    async for output in await client.run_command(
         "your-session-id-here", "echo Hello, World!", mode=CommandMode.STREAM
     ):
         print("Streamed Output:", output)
 
     # Run a command in WAIT mode
     for i in range(10):
-        result = await manager.run_command(
+        result = await client.run_command(
             "your-session-id-here", "echo HELLO WORLD!", mode=CommandMode.WAIT
         )
         print("Command Result:", result)
 
     # Run a command in BACKGROUND mode
-    background_process = await manager.run_command(
-        "your-session-id-here", "echo Hello, World!", mode=CommandMode.BACKGROUND
+    background_process = await client.run_command(
+        "your-session-id-here", "echo Hello, World! && sleep 10", mode=CommandMode.BACKGROUND
     )
     print("Background Process ID:", background_process.process_id)
 
     # Check the status of the command
-    status = await manager.check_status()
+    status = await client.check_status("your-session-id-here", background_process.process_id)
     print("Status:", status)
 
     # Kill the command
-    killed_info = await manager.kill_command(
-        "your-session-id-here", "your-process-id-here"
+    killed_info = await client.kill_command(
+        "your-session-id-here", background_process.process_id
     )
     print("Killed Info:", killed_info)
 
     # Disconnect from the server
-    await manager.disconnect()
+    await client.disconnect()
 
 
 # Run the main function
