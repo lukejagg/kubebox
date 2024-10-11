@@ -8,7 +8,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 # Path to your terraform state file
-TERRAFORM_STATE_FILE = "../1_infra/terraform.tfstate"
+TERRAFORM_STATE_FILE = "../../apps/sandbox/terraform.tfstate"
 
 # User for whom we're creating the pod
 USER_NAME = "luke3"

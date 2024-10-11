@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "create-pod"
+name = "ai-sandbox"
 version = "0.1.0"
 description = ""
 authors = ["lukejagg <lukejagg@gmail.com>"]
