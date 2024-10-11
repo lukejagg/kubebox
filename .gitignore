@@ -3,9 +3,3 @@ __pycache__
 venv/
 .DS_Store
 *.pyc
-
-terraform.tfvars
-.terraform
-.terraform.lock.hcl
-*.backup
-terraform.tfstate

@@ -94,7 +94,6 @@ resource "kubernetes_deployment" "myapp_deployment" {
       }
 
       spec {
-        # Correct placement of image_pull_secrets
         image_pull_secrets {
           name = kubernetes_secret.docker_secret.metadata[0].name
         }
@@ -111,6 +110,17 @@ resource "kubernetes_deployment" "myapp_deployment" {
     }
   }
 }
+
+// # For AKS, you can enable autoscaling via Terraform
+// resource "azurerm_kubernetes_cluster_node_pool" "default" {
+//   name                = "default"
+//   kubernetes_cluster_id = azurerm_kubernetes_cluster.aks.id
+//   vm_size             = "Standard_DS2_v2"
+//   node_count          = 2
+//   min_count           = 2
+//   max_count           = 5
+//   enable_auto_scaling = true
+// }
 
 # Step 8: Expose the Deployment via a Kubernetes Service
 resource "kubernetes_service" "myapp_service" {

@@ -14,7 +14,7 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-root
 
 # Copy the current directory contents into the container at /app
-COPY . .
+COPY sandbox/ ./sandbox/
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
@@ -23,4 +23,4 @@ EXPOSE 80
 ENV PYTHONUNBUFFERED=1
 
 # Run the application
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
+CMD ["poetry", "run", "uvicorn", "sandbox.main:app", "--host", "0.0.0.0", "--port", "80"]
