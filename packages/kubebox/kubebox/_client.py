@@ -167,7 +167,9 @@ class SandboxClient:
         self.sio.on("status", on_status)
 
         # Emit the check_status event with session_id and process_id
-        await self.sio.emit("check_status", {"session_id": session_id, "process_id": process_id})
+        await self.sio.emit(
+            "check_status", {"session_id": session_id, "process_id": process_id}
+        )
 
         # Wait for the status response
         await status_event.wait()
@@ -197,45 +199,50 @@ class SandboxClient:
         await self.sio.eio.disconnect()
 
 
-async def main():
-    client = SandboxClient(url="http://localhost:80")
-    await client.connect()
+if __name__ == "__main__":
 
-    # Initialize a session
-    await client.initialize_session("your-session-id-here", "/some/path")
+    async def main():
+        client = SandboxClient(url="http://localhost:80")
+        await client.connect()
 
-    # Run a command in STREAM mode
-    async for output in await client.run_command(
-        "your-session-id-here", "echo Hello, World!", mode=CommandMode.STREAM
-    ):
-        print("Streamed Output:", output)
+        # Initialize a session
+        await client.initialize_session("your-session-id-here", "/some/path")
 
-    # Run a command in WAIT mode
-    for i in range(10):
-        result = await client.run_command(
-            "your-session-id-here", "echo HELLO WORLD!", mode=CommandMode.WAIT
+        # Run a command in STREAM mode
+        async for output in await client.run_command(
+            "your-session-id-here", "echo Hello, World!", mode=CommandMode.STREAM
+        ):
+            print("Streamed Output:", output)
+
+        # Run a command in WAIT mode
+        for i in range(10):
+            result = await client.run_command(
+                "your-session-id-here", "echo HELLO WORLD!", mode=CommandMode.WAIT
+            )
+            print("Command Result:", result)
+
+        # Run a command in BACKGROUND mode
+        background_process = await client.run_command(
+            "your-session-id-here",
+            "echo Hello, World! && sleep 10",
+            mode=CommandMode.BACKGROUND,
         )
-        print("Command Result:", result)
+        print("Background Process ID:", background_process.process_id)
 
-    # Run a command in BACKGROUND mode
-    background_process = await client.run_command(
-        "your-session-id-here", "echo Hello, World! && sleep 10", mode=CommandMode.BACKGROUND
-    )
-    print("Background Process ID:", background_process.process_id)
+        # Check the status of the command
+        status = await client.check_status(
+            "your-session-id-here", background_process.process_id
+        )
+        print("Status:", status)
 
-    # Check the status of the command
-    status = await client.check_status("your-session-id-here", background_process.process_id)
-    print("Status:", status)
+        # Kill the command
+        killed_info = await client.kill_command(
+            "your-session-id-here", background_process.process_id
+        )
+        print("Killed Info:", killed_info)
 
-    # Kill the command
-    killed_info = await client.kill_command(
-        "your-session-id-here", background_process.process_id
-    )
-    print("Killed Info:", killed_info)
+        # Disconnect from the server
+        await client.disconnect()
 
-    # Disconnect from the server
-    await client.disconnect()
-
-
-# Run the main function
-asyncio.run(main())
+    # Run the main function
+    asyncio.run(main())
