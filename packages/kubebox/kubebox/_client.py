@@ -257,9 +257,6 @@ if __name__ == "__main__":
         )
         print("Killed Info:", killed_info)
 
-        # Disconnect from the server
-        await client.disconnect()
-
         # Example usage of get_file
         try:
             file_content = await client.get_file("path/to/your/file.txt")
@@ -273,6 +270,9 @@ if __name__ == "__main__":
             print("File Paths:", file_paths)
         except Exception as e:
             print(e)
+            
+        # Disconnect from the server
+        await client.disconnect()
 
     # Run the main function
     asyncio.run(main())
