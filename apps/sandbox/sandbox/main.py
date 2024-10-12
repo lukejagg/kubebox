@@ -173,6 +173,7 @@ session_manager = SessionManager()
 
 @app.post("/initialize")
 async def initialize(init_data: InitType):
+    print(f"Initializing session with data: {init_data}")
     session_id = init_data.session_id
     session_path = init_data.path or "/default/path"
     session_manager.create_session(session_id, session_path)
@@ -183,6 +184,7 @@ async def initialize(init_data: InitType):
 async def run_command(data: dict):
     session_id = data.get("session_id")
     command = data.get("command")
+    path = data.get("path")
     mode = data.get("mode", ExecutionMode.WAIT)
     timeout = data.get("timeout", 10)
 
@@ -192,7 +194,10 @@ async def run_command(data: dict):
 
     if mode == ExecutionMode.STREAM:
         process = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=path,
         )
         process_obj = Process(process.pid, process, process.stdout, process.stderr)
         session_manager.add_process(session_id, process_obj)
@@ -201,7 +206,12 @@ async def run_command(data: dict):
     elif mode == ExecutionMode.WAIT:
         try:
             result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, timeout=timeout
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                cwd=path,
             )
             # No need to create a Process object for WAIT mode
             return {
@@ -218,7 +228,10 @@ async def run_command(data: dict):
 
     elif mode == ExecutionMode.BACKGROUND:
         process = await asyncio.create_subprocess_shell(
-            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=path,
         )
         process_obj = Process(process.pid, process, process.stdout, process.stderr)
         session_manager.add_process(session_id, process_obj)
@@ -348,6 +361,8 @@ async def get_file(session_id: str, file_path: str):
     if not session:
         raise HTTPException(status_code=400, detail="Session not found")
 
+    print(f"Getting file {file_path} from session {session_id}")
+    print(f"{session.path}")
     full_path = os.path.join(session.path, file_path)
     if not os.path.isfile(full_path):
         raise HTTPException(status_code=404, detail="File not found")

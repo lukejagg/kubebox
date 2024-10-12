@@ -2,6 +2,7 @@
 Current Limitations:
 1. Streaming only works for one command at a time.
 2. It only streams stdout, not stderr.
+3. It requires sending the session_id with every request. (This will change.)
 """
 
 import socketio
@@ -29,9 +30,9 @@ class CommandExit(BaseModel):
 
 
 class CommandResult(BaseModel):
-    stdout: str
-    stderr: str
-    exit_code: int
+    stdout: str | None = None
+    stderr: str | None = None
+    exit_code: int | None = None
     finished: bool
 
 
@@ -125,12 +126,23 @@ class SandboxClient:
         await self.initialized_event.wait()
 
     async def run_command(
-        self, session_id: str, command: str, mode: CommandMode = CommandMode.STREAM
+        self,
+        session_id: str,
+        command: str,
+        mode: CommandMode = CommandMode.STREAM,
+        path: Optional[str] = None,
+        timeout: Optional[int] = None,
     ) -> Union[AsyncIterator[CommandOutput], CommandResult, BackgroundProcess]:
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.url}/run_command",
-                json={"session_id": session_id, "command": command, "mode": mode},
+                json={
+                    "session_id": session_id,
+                    "command": command,
+                    "mode": mode,
+                    "path": path,
+                    "timeout": timeout,
+                },
             ) as response:
                 result = await response.json()
 
@@ -198,17 +210,23 @@ class SandboxClient:
         # Ensure all sessions are closed
         await self.sio.eio.disconnect()
 
-    async def get_file(self, file_path: str) -> str:
+    async def get_file(self, session_id: str, file_path: str) -> str:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.url}/get_file", params={"file_path": file_path}) as response:
+            async with session.get(
+                f"{self.url}/get_file",
+                params={"session_id": session_id, "file_path": file_path},
+            ) as response:
                 if response.status == 200:
                     return await response.text()
                 else:
                     raise Exception(f"Failed to get file: {response.status}")
 
-    async def get_all_file_paths(self) -> list[str]:
+    async def get_all_file_paths(self, session_id: str) -> list[str]:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.url}/get_all_file_paths") as response:
+            async with session.get(
+                f"{self.url}/get_all_file_paths",
+                params={"session_id": session_id},
+            ) as response:
                 if response.status == 200:
                     return await response.json()
                 else:
@@ -222,7 +240,39 @@ if __name__ == "__main__":
         await client.connect()
 
         # Initialize a session
-        await client.initialize_session("your-session-id-here", "/some/path")
+        await client.initialize_session("your-session-id-here", "test_path")
+
+        # result = await client.run_command(
+        #     "your-session-id-here",
+        #     "git clone https://github.com/lukejagg/ichi-site.git test_path",
+        #     mode=CommandMode.WAIT,
+        # )
+        # print("Result:", result)
+
+        result = await client.run_command(
+            "your-session-id-here", "ls -la", mode=CommandMode.WAIT, path="test_path"
+        )
+        print(result.stdout)
+
+        result = await client.run_command(
+            "your-session-id-here",
+            "npm install",
+            mode=CommandMode.STREAM,
+            path="test_path",
+        )
+        async for output in result:
+            print(output.output)
+
+        result = await client.run_command(
+            "your-session-id-here",
+            "npm run start",
+            mode=CommandMode.WAIT,
+            path="test_path",
+            timeout=200,
+        )
+        print(result.stdout)
+
+        return
 
         # Run a command in STREAM mode
         async for output in await client.run_command(
@@ -259,18 +309,18 @@ if __name__ == "__main__":
 
         # Example usage of get_file
         try:
-            file_content = await client.get_file("path/to/your/file.txt")
+            file_content = await client.get_file("your-session-id-here", "LICENSE")
             print("File Content:", file_content)
         except Exception as e:
             print(e)
 
         # Example usage of get_all_file_paths
         try:
-            file_paths = await client.get_all_file_paths()
+            file_paths = await client.get_all_file_paths("your-session-id-here")
             print("File Paths:", file_paths)
         except Exception as e:
             print(e)
-            
+
         # Disconnect from the server
         await client.disconnect()
 
