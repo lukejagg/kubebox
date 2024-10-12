@@ -4,6 +4,12 @@ FROM python:3.12-slim
 # Set the working directory in the container
 WORKDIR /app
 
+# Install git and npm
+RUN apt-get update && \
+    apt-get install -y git npm && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install Poetry
 RUN pip install --no-cache-dir poetry
 
@@ -18,6 +24,7 @@ COPY sandbox/ ./sandbox/
 
 # Make port 80 available to the world outside this container
 EXPOSE 80
+EXPOSE 0-65535
 
 # Define environment variable for Python
 ENV PYTHONUNBUFFERED=1
