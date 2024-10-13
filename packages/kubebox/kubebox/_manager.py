@@ -253,6 +253,8 @@ class Kubebox:
         namespace: str = "default",
         image: str = "lukejagg/sandbox:latest",
         username: str = None,
+        kubebox_public_key_secret_name: str = None,
+        kubebox_public_key_key: str = None,
     ):
         logging.info(
             f"Creating pod: {pod_name} in namespace: {namespace} with image: {image}"
@@ -275,6 +277,19 @@ class Kubebox:
                 ]
             },
         }
+        
+        if kubebox_public_key_secret_name and kubebox_public_key_key:
+            pod_manifest["spec"]["containers"][0]["env"] = [
+                {
+                    "name": kubebox_public_key_key,
+                    "valueFrom": {
+                        "secretKeyRef": {
+                            "name": kubebox_public_key_secret_name,
+                            "key": kubebox_public_key_key
+                        }
+                    }
+                }
+            ]
 
         try:
             api_response = self._core_v1.create_namespaced_pod(
@@ -285,15 +300,6 @@ class Kubebox:
         except ApiException as e:
             if e.status == 409:
                 logging.info(f"Pod {pod_name} already exists in namespace {namespace}")
-                # try:
-                #     api_response = self._core_v1.replace_namespaced_pod(
-                #         name=name, namespace=namespace, body=pod_manifest
-                #     )
-                #     logging.info(f"Pod {name} updated successfully")
-                #     return KubeboxPod(name, namespace, kubebox=self)
-                # except ApiException as update_e:
-                #     logging.error(f"Error updating pod {name}: {update_e}")
-                #     raise update_e
                 return KubeboxPod(pod_name, namespace, kubebox=self)
             else:
                 logging.error(f"Error creating pod {pod_name}: {e}")
@@ -451,25 +457,26 @@ if __name__ == "__main__":
         KUBEBOX_PUBLIC_KEY = os.getenv("KUBEBOX_PUBLIC_KEY")
         KUBEBOX_PRIVATE_KEY = os.getenv("KUBEBOX_PRIVATE_KEY")
         
-        SANDBOX_PUBLIC_KEY = os.getenv("SANDBOX_PUBLIC_KEY")
-        SANDBOX_PRIVATE_KEY = os.getenv("REMOVE_THIS_SANDBOX_PRIVATE_KEY")
         
         from kubebox.security import sign_packet, verify_packet, encrypt_packet, decrypt_packet
         
         packet = b"Important data from API"
-
         signature = sign_packet(packet, KUBEBOX_PRIVATE_KEY)
         is_verified = verify_packet(packet, signature, KUBEBOX_PUBLIC_KEY)
         print("Packet is verified as coming from the API:", is_verified)
         
-        encrypted_packet = encrypt_packet(packet, SANDBOX_PUBLIC_KEY)
-        decrypted_packet = decrypt_packet(encrypted_packet, SANDBOX_PRIVATE_KEY)
-        print("Decrypted packet:", decrypted_packet)
+        # SANDBOX_PUBLIC_KEY = os.getenv("SANDBOX_PUBLIC_KEY")
+        # SANDBOX_PRIVATE_KEY = os.getenv("REMOVE_THIS_SANDBOX_PRIVATE_KEY")
+        # encrypted_packet = encrypt_packet(packet, SANDBOX_PUBLIC_KEY)
+        # decrypted_packet = decrypt_packet(encrypted_packet, SANDBOX_PRIVATE_KEY)
+        # print("Decrypted packet:", decrypted_packet)
         # return
 
-        kubebox = Kubebox(terraform_path="../../apps/sandbox/terraform.tfstate", print_kubebox_str=True)
-        # kubebox = Kubebox(secret)
-        pod = kubebox.create_pod(name, username=username)
+        # kubebox = Kubebox(terraform_path="../../apps/sandbox/terraform.tfstate", print_kubebox_str=True)
+        kubebox = Kubebox(secret)
+        kubebox.create_secret(secret_name="kubebox-public-key", namespace="default", data={"KUBEBOX_PUBLIC_KEY": KUBEBOX_PUBLIC_KEY})
+        
+        pod = kubebox.create_pod(name, username=username, kubebox_public_key_secret_name="kubebox-public-key", kubebox_public_key_key="KUBEBOX_PUBLIC_KEY")
         service = kubebox.create_service(name, username=username)
 
         await pod.wait_until_ready()
