@@ -1,6 +1,7 @@
 """
 Limitations:
 1. Cannot whitelist IPs for this service (for only client to be able to access)
+2. All ports open by default (instead, could map the port dynamically)? [may be fixed on the service, not the pod]
 """
 
 import json

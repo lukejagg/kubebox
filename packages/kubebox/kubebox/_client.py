@@ -3,6 +3,9 @@ Current Limitations:
 1. Streaming only works for one command at a time.
 2. It only streams stdout, not stderr.
 3. It requires sending the session_id with every request. (This will change.)
+
+Todo:
+1. Make it stream stderr too...
 """
 
 import socketio

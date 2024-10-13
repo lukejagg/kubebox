@@ -11,7 +11,10 @@ from ._client import (
 )
 
 from ._manager import (
-    Kubebox
+    Kubebox,
+    KubeboxPod,
+    KubeboxService,
+    KubeboxPodExistsError,
 )
 
 __all__ = [
@@ -25,4 +28,7 @@ __all__ = [
     "CommandError",
     "BackgroundProcess",
     "Kubebox",
+    "KubeboxPod",
+    "KubeboxService",
+    "KubeboxPodExistsError",
 ]
