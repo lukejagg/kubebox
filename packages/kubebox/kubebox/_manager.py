@@ -190,9 +190,9 @@ class KubeboxService:
 
 
 class Kubebox:
-    def __init__(self, kubebox_str: Optional[str] = None, terraform_path: Optional[str] = None):
+    def __init__(self, kubebox_str: Optional[str] = None, terraform_path: Optional[str] = None, print_kubebox_str: bool = False):
         self.terraform_path = terraform_path
-        self._load_kube_config_from_terraform(terraform_path, kubebox_str)
+        self._load_kube_config_from_terraform(terraform_path, kubebox_str, print_kubebox_str)
 
         self._client = client.ApiClient()
         self._core_v1 = client.CoreV1Api()
@@ -465,10 +465,10 @@ if __name__ == "__main__":
         encrypted_packet = encrypt_packet(packet, SANDBOX_PUBLIC_KEY)
         decrypted_packet = decrypt_packet(encrypted_packet, SANDBOX_PRIVATE_KEY)
         print("Decrypted packet:", decrypted_packet)
-        return
+        # return
 
-        # kubebox = Kubebox("../../apps/sandbox/terraform.tfstate")
-        kubebox = Kubebox(secret)
+        kubebox = Kubebox(terraform_path="../../apps/sandbox/terraform.tfstate", print_kubebox_str=True)
+        # kubebox = Kubebox(secret)
         pod = kubebox.create_pod(name, username=username)
         service = kubebox.create_service(name, username=username)
 

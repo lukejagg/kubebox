@@ -2,6 +2,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
+from cryptography.exceptions import InvalidSignature
 
 
 def generate_keys(print_keys: bool = False):
@@ -89,7 +90,7 @@ def verify_packet(packet: bytes, signature: bytes, public_key):
             hashes.SHA256(),
         )
         return True
-    except:
+    except InvalidSignature:
         return False
 
 
