@@ -236,18 +236,19 @@ class SandboxClient:
 if __name__ == "__main__":
 
     async def main():
-        client = SandboxClient(url="http://localhost:80")
+        # client = SandboxClient(url="http://localhost:80")
+        client = SandboxClient(url="http://51.8.8.123:80")
         await client.connect()
 
         # Initialize a session
         await client.initialize_session("your-session-id-here", "test_path")
 
-        # result = await client.run_command(
-        #     "your-session-id-here",
-        #     "git clone https://github.com/lukejagg/ichi-site.git test_path",
-        #     mode=CommandMode.WAIT,
-        # )
-        # print("Result:", result)
+        result = await client.run_command(
+            "your-session-id-here",
+            "git clone https://github.com/lukejagg/ichi-site.git test_path",
+            mode=CommandMode.WAIT,
+        )
+        print("Result:", result)
 
         result = await client.run_command(
             "your-session-id-here", "ls -la", mode=CommandMode.WAIT, path="test_path"
@@ -266,11 +267,12 @@ if __name__ == "__main__":
         result = await client.run_command(
             "your-session-id-here",
             "npm run start",
-            mode=CommandMode.WAIT,
+            mode=CommandMode.STREAM,
             path="test_path",
-            timeout=200,
+            # timeout=200,
         )
-        print(result.stdout)
+        async for output in result:
+            print(output.output)
 
         return
 

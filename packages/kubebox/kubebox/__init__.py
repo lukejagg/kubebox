@@ -10,6 +10,10 @@ from ._client import (
     BackgroundProcess,
 )
 
+from ._manager import (
+    Kubebox
+)
+
 __all__ = [
     "SandboxClient",
     "CommandMode",
@@ -20,4 +24,5 @@ __all__ = [
     "CommandKilled",
     "CommandError",
     "BackgroundProcess",
+    "Kubebox",
 ]
