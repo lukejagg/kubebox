@@ -253,19 +253,28 @@ async def start_command_stream(sid, data):
 
     async def stream_output():
         try:
-            while True:
-                line = await process._stdout.readline()
-                if not line:
-                    break
-                await sio.emit(
-                    "command_output",
-                    {
-                        "output": line.decode(),
-                        "session_id": session_id,
-                        "process_id": process_id,
-                    },
-                    room=session.sid,
-                )
+            async def read_stream(stream, stream_type):
+                while True:
+                    line = await stream.readline()
+                    if line:
+                        await sio.emit(
+                            "command_output",
+                            {
+                                "output": line.decode(),
+                                "type": stream_type,
+                                "session_id": session_id,
+                                "process_id": process_id,
+                            },
+                            room=session.sid,
+                        )
+                    else:
+                        break
+
+            await asyncio.gather(
+                read_stream(process._stdout, "stdout"),
+                read_stream(process._stderr, "stderr"),
+            )
+
         except Exception as e:
             print(f"Error during streaming: {e}")
         finally:

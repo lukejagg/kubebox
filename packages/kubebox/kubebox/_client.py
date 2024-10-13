@@ -12,7 +12,7 @@ import socketio
 import asyncio
 import aiohttp
 from pydantic import BaseModel
-from typing import Optional, AsyncIterator, Union
+from typing import Literal, Optional, AsyncIterator, Union
 from enum import Enum
 
 
@@ -24,6 +24,7 @@ class CommandMode(str, Enum):
 
 class CommandOutput(BaseModel):
     output: str
+    type: Literal["stdout", "stderr"]
     process_id: Union[str, int]
 
 
@@ -239,8 +240,7 @@ class SandboxClient:
 if __name__ == "__main__":
 
     async def main():
-        # client = SandboxClient(url="http://localhost:80")
-        client = SandboxClient(url="http://51.8.8.123:80")
+        client = SandboxClient(url="http://localhost:80")
         await client.connect()
 
         # Initialize a session
