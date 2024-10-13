@@ -66,6 +66,60 @@ class KubeboxService:
         self.namespace = namespace
         self._kubebox = kubebox
 
+    async def update_network_policy(self, allowed_ips: list[str]):
+        policy_name = f"{self.name}-network-policy"
+        network_policy_manifest = {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": policy_name},
+            "spec": {
+                "podSelector": {"matchLabels": {"app": self.name}},
+                "policyTypes": ["Ingress", "Egress"],
+                "ingress": [
+                    {
+                        "from": [
+                            {
+                                "ipBlock": {"cidr": f"{allowed_ip}/32"}
+                            }
+                            for allowed_ip in allowed_ips
+                        ]
+                    }
+                ],
+                "egress": [
+                    {
+                        "to": [
+                            {
+                                "ipBlock": {"cidr": f"{allowed_ip}/32"}
+                            }
+                            for allowed_ip in allowed_ips
+                        ]
+                    }
+                ],
+            },
+        }
+
+        try:
+            api_response = await asyncio.to_thread(
+                self._kubebox._networking_v1.replace_namespaced_network_policy,
+                name=policy_name,
+                namespace=self.namespace,
+                body=network_policy_manifest
+            )
+            logging.info(f"Network Policy '{policy_name}' updated.")
+        except ApiException as e:
+            if e.status == 404:
+                try:
+                    api_response = await asyncio.to_thread(
+                        self._kubebox._networking_v1.create_namespaced_network_policy,
+                        namespace=self.namespace,
+                        body=network_policy_manifest
+                    )
+                    logging.info(f"Network Policy '{policy_name}' created.")
+                except ApiException as create_e:
+                    logging.error(f"Exception when creating network policy: {create_e}")
+            else:
+                logging.error(f"Exception when updating network policy: {e}")
+
     async def wait_until_ready(self, poll_interval: float = 0.1):
         logging.info(f"Waiting for service '{self.name}' to be ready...")
         # start_time = asyncio.get_event_loop().time()
