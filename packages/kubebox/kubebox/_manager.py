@@ -1,3 +1,8 @@
+"""
+Limitations:
+1. Cannot whitelist IPs for this service (for only client to be able to access)
+"""
+
 import json
 import logging
 import asyncio
@@ -48,15 +53,32 @@ class KubeboxService:
         self.namespace = namespace
         self._kubebox = kubebox
 
-    async def get_external_ip(self, timeout: float = 5, poll_interval: float = 0.1):
-        """
-        Asynchronously waits for the external IP of the service to become available.
+    async def wait_until_ready(self, poll_interval: float = 0.1):
+        logging.info(f"Waiting for service '{self.name}' to be ready...")
+        # start_time = asyncio.get_event_loop().time()
+        while True:  # asyncio.get_event_loop().time() - start_time < timeout:
+            try:
+                # Use asyncio.to_thread to run the blocking I/O operation in a separate thread
+                service = await asyncio.to_thread(
+                    self._kubebox._core_v1.read_namespaced_service,
+                    name=self.name,
+                    namespace=self.namespace,
+                )
+                ingress = service.status.load_balancer.ingress
+                if ingress:
+                    ip = ingress[0].ip or ingress[0].hostname
+                    if ip:
+                        logging.info(f"Service '{self.name}' is ready with IP: {ip}.")
+                        return ip
+            except ApiException as e:
+                logging.error(f"Exception when reading service status: {e}")
+                # Consider whether to break or continue based on the type of exception
 
-        :param timeout: Maximum time to wait for the external IP in seconds.
-        :param poll_interval: Time to wait between polls in seconds.
-        :return: The external IP or hostname of the service.
-        :raises TimeoutError: If the external IP is not available within the timeout period.
-        """
+            await asyncio.sleep(poll_interval)
+
+        raise TimeoutError(f"Timed out waiting for service '{self.name}' to be ready.")
+
+    async def get_external_ip(self, timeout: float = 5, poll_interval: float = 0.1):
         logging.info(f"Waiting for external IP of service '{self.name}'...")
         start_time = asyncio.get_event_loop().time()
 
@@ -66,7 +88,7 @@ class KubeboxService:
                 service = await asyncio.to_thread(
                     self._kubebox._core_v1.read_namespaced_service,
                     name=self.name,
-                    namespace=self.namespace
+                    namespace=self.namespace,
                 )
                 ingress = service.status.load_balancer.ingress
                 if ingress:
@@ -80,7 +102,9 @@ class KubeboxService:
 
             await asyncio.sleep(poll_interval)
 
-        raise TimeoutError(f"Timed out waiting for external IP of service '{self.name}'.")
+        raise TimeoutError(
+            f"Timed out waiting for external IP of service '{self.name}'."
+        )
 
 
 class Kubebox:
@@ -263,7 +287,7 @@ if __name__ == "__main__":
                 return formatter.format(record)
 
         # Set up the root logger
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.INFO)
         logger = logging.getLogger()
 
         # Remove default handlers and add the custom handler
@@ -274,15 +298,16 @@ if __name__ == "__main__":
         console_handler.setFormatter(CustomFormatter())
         logger.addHandler(console_handler)
 
-    async def main():
+    async def main(name: str, username: str):
         kubebox = Kubebox("./apps/sandbox/terraform.tfstate")
 
-        pod = kubebox.create_pod("test", username="test")
-        service = kubebox.create_service("test", username="test")
+        pod = kubebox.create_pod(name, username=username)
+        service = kubebox.create_service(name, username=username)
 
         await pod.wait_until_ready()
+        await service.wait_until_ready()
         ip = await service.get_external_ip()
         print(f"http://{ip}")
 
     setup_logging()
-    asyncio.run(main())
+    asyncio.run(main("luke2-pod", "luke2"))
