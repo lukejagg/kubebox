@@ -46,6 +46,19 @@ class KubeboxPod:
                 break
             await asyncio.sleep(poll_interval)
 
+    async def destroy(self):
+        await asyncio.to_thread(
+            self._kubebox._core_v1.delete_namespaced_pod,
+            name=self.name,
+            namespace=self.namespace,
+        )
+
+    def __str__(self):
+        return f"KubeboxPod(name={self.name}, namespace={self.namespace})"
+
+    def __repr__(self):
+        return str(self)
+
 
 class KubeboxService:
     def __init__(self, name: str, namespace: str, kubebox: "Kubebox" = None):
@@ -106,6 +119,19 @@ class KubeboxService:
             f"Timed out waiting for external IP of service '{self.name}'."
         )
 
+    async def destroy(self):
+        await asyncio.to_thread(
+            self._kubebox._core_v1.delete_namespaced_service,
+            name=self.name,
+            namespace=self.namespace,
+        )
+
+    def __str__(self):
+        return f"KubeboxService(name={self.name}, namespace={self.namespace})"
+
+    def __repr__(self):
+        return str(self)
+
 
 class Kubebox:
     def __init__(self, terraform_path: str):
@@ -114,6 +140,28 @@ class Kubebox:
 
         self._client = client.ApiClient()
         self._core_v1 = client.CoreV1Api()
+
+    async def get_all_pods(self, namespace: str = "default") -> list[KubeboxPod]:
+        pods = await asyncio.to_thread(
+            self._core_v1.list_namespaced_pod, namespace=namespace
+        )
+        return [
+            KubeboxPod(pod.metadata.name, pod.metadata.namespace, kubebox=self)
+            for pod in pods.items
+        ]
+
+    async def get_all_services(
+        self, namespace: str = "default"
+    ) -> list[KubeboxService]:
+        services = await asyncio.to_thread(
+            self._core_v1.list_namespaced_service, namespace=namespace
+        )
+        return [
+            KubeboxService(
+                service.metadata.name, service.metadata.namespace, kubebox=self
+            )
+            for service in services.items
+        ]
 
     def create_pod(
         self,
@@ -309,5 +357,16 @@ if __name__ == "__main__":
         ip = await service.get_external_ip()
         print(f"http://{ip}")
 
+        # pods = await kubebox.get_all_pods()
+        # services = await kubebox.get_all_services()
+        # print(pods)
+        # print(services)
+
+        # for pod in pods:
+        #     await pod.destroy()
+
+        # for service in services:
+        #     await service.destroy()
+
     setup_logging()
-    asyncio.run(main("luke2-pod", "luke2"))
+    asyncio.run(main("luke-pod", "luke"))
