@@ -1,8 +1,13 @@
+import os
+from dotenv import load_dotenv
 from kubebox import Kubebox, SandboxClient, CommandMode
+
+load_dotenv()
+KUBEBOX_CONFIG = os.getenv("KUBEBOX_CONFIG")
 
 
 async def main():
-    kubebox = Kubebox("../../apps/sandbox/terraform.tfstate")
+    kubebox = Kubebox(KUBEBOX_CONFIG)
     pod = kubebox.create_pod("test-pod", username="test-user")
     service = kubebox.create_service("test-pod", username="test-user", ports=[3000])
     await pod.wait_until_ready()

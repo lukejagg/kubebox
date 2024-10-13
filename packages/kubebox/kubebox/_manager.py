@@ -8,7 +8,7 @@ import json
 import logging
 import asyncio
 import time  # Ensure this import is at the top of the file
-from typing import Tuple  # Added logging package
+from typing import Optional, Tuple  # Added logging package
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -189,9 +189,9 @@ class KubeboxService:
 
 
 class Kubebox:
-    def __init__(self, terraform_path: str):
+    def __init__(self, kubebox_str: Optional[str] = None, terraform_path: Optional[str] = None):
         self.terraform_path = terraform_path
-        self._load_kube_config_from_terraform(terraform_path)
+        self._load_kube_config_from_terraform(terraform_path, kubebox_str)
 
         self._client = client.ApiClient()
         self._core_v1 = client.CoreV1Api()
@@ -334,41 +334,52 @@ class Kubebox:
             else:
                 logging.error(f"Error creating service {service_name}: {e}")
                 raise e
+    
+    def _load_kube_config_from_terraform(self, tfstate_file, kubebox_str, print_dict: bool = False):
+        if tfstate_file:
+            with open(tfstate_file, "r") as f:
+                tfstate = json.load(f)
 
-    def _load_kube_config_from_terraform(self, tfstate_file):
-        with open(tfstate_file, "r") as f:
-            tfstate = json.load(f)  # Use json.load instead of hcl2.load
+            # Navigate the state file to find the kubeconfig data
+            resources = tfstate.get("resources", [])
+            kube_config = None
 
-        # Navigate the state file to find the kubeconfig data
-        resources = tfstate.get("resources", [])
-        kube_config = None
-
-        for resource in resources:
-            if resource.get("type") == "azurerm_kubernetes_cluster":
-                for instance in resource.get("instances", []):
-                    attributes = instance.get("attributes", {})
-                    # Check for 'kube_config_raw' or 'kube_admin_config_raw'
-                    kube_config_raw = attributes.get(
-                        "kube_config_raw"
-                    ) or attributes.get("kube_admin_config_raw")
-                    if kube_config_raw:
-                        # Decode the base64-encoded kubeconfig
-                        # kube_config = base64.b64decode(kube_config_raw).decode('utf-8')
-                        kube_config = kube_config_raw
+            for resource in resources:
+                if resource.get("type") == "azurerm_kubernetes_cluster":
+                    for instance in resource.get("instances", []):
+                        attributes = instance.get("attributes", {})
+                        # Check for 'kube_config_raw' or 'kube_admin_config_raw'
+                        kube_config_raw = attributes.get(
+                            "kube_config_raw"
+                        ) or attributes.get("kube_admin_config_raw")
+                        if kube_config_raw:
+                            # Decode the base64-encoded kubeconfig
+                            # kube_config = base64.b64decode(kube_config_raw).decode('utf-8')
+                            kube_config = kube_config_raw
+                            break
+                    if kube_config:
                         break
-                if kube_config:
-                    break
 
-        if not kube_config:
-            raise Exception("Failed to find kube_config in terraform state file.")
+            if not kube_config:
+                raise Exception("Failed to find kube_config in terraform state file.")
 
-        # Write the kubeconfig to a temporary file
-        kubeconfig_path = "/tmp/kubeconfig"
-        with open(kubeconfig_path, "w") as f:
-            f.write(kube_config)
+            # Write the kubeconfig to a temporary file
+            kubeconfig_path = "/tmp/kubeconfig"
+            with open(kubeconfig_path, "w") as f:
+                f.write(kube_config)
 
-        # Load the kubeconfig
-        config.load_kube_config(config_file=kubeconfig_path)
+            if print_dict:
+                print(json.dumps(kube_config))
+
+            # Load the kubeconfig
+            config.load_kube_config(config_file=kubeconfig_path)
+        elif kubebox_str:
+            kubeconfig_path = "/tmp/kubeconfig"
+            with open(kubeconfig_path, "w") as f:
+                f.write(kubebox_str)
+            config.load_kube_config(config_file=kubeconfig_path)
+        else:
+            raise Exception("No kubeconfig provided.")
 
 
 if __name__ == "__main__":
@@ -402,8 +413,14 @@ if __name__ == "__main__":
         logger.addHandler(console_handler)
 
     async def main(name: str, username: str):
-        kubebox = Kubebox("./apps/sandbox/terraform.tfstate")
+        from dotenv import load_dotenv
+        import os
 
+        load_dotenv()
+        secret = os.getenv("KUBEBOX_CONFIG")
+
+        # kubebox = Kubebox("../../apps/sandbox/terraform.tfstate")
+        kubebox = Kubebox(secret)
         pod = kubebox.create_pod(name, username=username)
         service = kubebox.create_service(name, username=username)
 
