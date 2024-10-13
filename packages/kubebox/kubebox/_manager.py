@@ -4,6 +4,7 @@ Limitations:
 2. All ports open by default (instead, could map the port dynamically)? [may be fixed on the service, not the pod]
 """
 
+import base64
 import json
 import logging
 import asyncio
@@ -195,6 +196,34 @@ class Kubebox:
 
         self._client = client.ApiClient()
         self._core_v1 = client.CoreV1Api()
+
+    def create_secret(self, secret_name: str, namespace: str, data: dict[str, str]):
+        # Encode the secret data in base64
+        encoded_data = {k: base64.b64encode(v.encode()).decode() for k, v in data.items()}
+
+        secret_manifest = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {"name": secret_name, "namespace": namespace},
+            "type": "Opaque",
+            "data": encoded_data,
+        }
+
+        try:
+            self._core_v1.create_namespaced_secret(namespace=namespace, body=secret_manifest)
+            logging.info(f"Secret {secret_name} created successfully in namespace {namespace}")
+        except ApiException as e:
+            if e.status == 409:
+                logging.info(f"Secret {secret_name} already exists in namespace {namespace}")
+                try:
+                    self._core_v1.replace_namespaced_secret(namespace=namespace, name=secret_name, body=secret_manifest)
+                    logging.info(f"Secret {secret_name} updated successfully in namespace {namespace}")
+                except ApiException as update_e:
+                    logging.error(f"Error updating secret {secret_name}: {update_e}")
+                    raise update_e
+            else:
+                logging.error(f"Error creating secret {secret_name}: {e}")
+                raise e
 
     async def get_all_pods(self, namespace: str = "default") -> list[KubeboxPod]:
         pods = await asyncio.to_thread(
@@ -412,12 +441,31 @@ if __name__ == "__main__":
         console_handler.setFormatter(CustomFormatter())
         logger.addHandler(console_handler)
 
-    async def main(name: str, username: str):
+    async def main(name: str, username: str):    
         from dotenv import load_dotenv
         import os
 
         load_dotenv()
         secret = os.getenv("KUBEBOX_CONFIG")
+        
+        KUBEBOX_PUBLIC_KEY = os.getenv("KUBEBOX_PUBLIC_KEY")
+        KUBEBOX_PRIVATE_KEY = os.getenv("KUBEBOX_PRIVATE_KEY")
+        
+        SANDBOX_PUBLIC_KEY = os.getenv("SANDBOX_PUBLIC_KEY")
+        SANDBOX_PRIVATE_KEY = os.getenv("REMOVE_THIS_SANDBOX_PRIVATE_KEY")
+        
+        from kubebox.security import sign_packet, verify_packet, encrypt_packet, decrypt_packet
+        
+        packet = b"Important data from API"
+
+        signature = sign_packet(packet, KUBEBOX_PRIVATE_KEY)
+        is_verified = verify_packet(packet, signature, KUBEBOX_PUBLIC_KEY)
+        print("Packet is verified as coming from the API:", is_verified)
+        
+        encrypted_packet = encrypt_packet(packet, SANDBOX_PUBLIC_KEY)
+        decrypted_packet = decrypt_packet(encrypted_packet, SANDBOX_PRIVATE_KEY)
+        print("Decrypted packet:", decrypted_packet)
+        return
 
         # kubebox = Kubebox("../../apps/sandbox/terraform.tfstate")
         kubebox = Kubebox(secret)
