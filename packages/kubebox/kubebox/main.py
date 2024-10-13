@@ -1,3 +1,8 @@
+"""
+Limitations:
+1. All ports are open by default (instead, could map the port dynamically)
+2. ...
+"""
 import os
 import time
 import base64
@@ -8,10 +13,10 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 # Path to your terraform state file
-TERRAFORM_STATE_FILE = "../../apps/sandbox/terraform.tfstate"
+TERRAFORM_STATE_FILE = "./apps/sandbox/terraform.tfstate"
 
 # User for whom we're creating the pod
-USER_NAME = "luke3"
+USER_NAME = "luke4"
 
 # Docker image to use (replace with your actual image)
 DOCKER_IMAGE = "lukejagg/sandbox:latest"
@@ -71,7 +76,7 @@ def create_pod_and_service(api_instance, core_v1, user_name, image):
                 {
                     "name": f"{user_name}-container",
                     "image": image,
-                    "ports": [{"containerPort": 80}],
+                    # "ports": [{"containerPort": 80}],
                 }
             ]
         },
@@ -98,7 +103,11 @@ def create_pod_and_service(api_instance, core_v1, user_name, image):
         "metadata": {"name": service_name},
         "spec": {
             "selector": {"app": user_name},
-            "ports": [{"protocol": "TCP", "port": 80, "targetPort": 80}],
+            "ports": [
+                {"name": "api", "protocol": "TCP", "port": 80, "targetPort": 80},
+                {"name": "dev-3000", "protocol": "TCP", "port": 3000, "targetPort": 3000},
+                # Add more ports with unique names as needed
+            ],
             "type": "LoadBalancer",
             "externalTrafficPolicy": "Local",
         },
