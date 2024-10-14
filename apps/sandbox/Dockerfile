@@ -4,9 +4,11 @@ FROM python:3.12-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Install git and npm
+# Install git, npm, pnpm, yarn, bun, and ps
 RUN apt-get update && \
-    apt-get install -y git npm && \
+    apt-get install -y git npm procps && \
+    npm install -g pnpm yarn && \
+    curl -fsSL https://bun.sh/install | bash && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
