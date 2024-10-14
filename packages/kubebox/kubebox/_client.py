@@ -224,6 +224,28 @@ class SandboxClient:
                     return await response.text()
                 else:
                     raise Exception(f"Failed to get file: {response.status}")
+                
+    async def write_file(self, session_id: str, file_path: str, content: str):
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.url}/write_file",
+                json={"session_id": session_id, "file_path": file_path, "content": content},
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"Failed to write file: {response.status}")
+                
+    async def file_exists(self, session_id: str, file_path: str) -> bool:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{self.url}/file_exists",
+                params={"session_id": session_id, "file_path": file_path},
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"Failed to check if file exists: {response.status}")
 
     async def get_all_file_paths(self, session_id: str) -> list[str]:
         async with aiohttp.ClientSession() as session:

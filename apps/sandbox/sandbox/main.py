@@ -13,6 +13,10 @@ Features:
    - Check if a session is still running.
    - Terminate a session by its session ID.
 6. Emit session-related events and results back to the client.
+
+
+Todo:
+1. Update get_file to read_file, etc.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -377,6 +381,30 @@ async def get_file(session_id: str, file_path: str):
         raise HTTPException(status_code=404, detail="File not found")
 
     return FileResponse(full_path)
+
+
+@app.post("/write_file")
+async def write_file(session_id: str, file_path: str, content: str):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    full_path = os.path.join(session.path, file_path)
+    with open(full_path, "w") as f:
+        f.write(content)
+
+    return {"status": "success"}
+
+
+@app.get("/file_exists")
+async def file_exists(session_id: str, file_path: str):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    full_path = os.path.join(session.path, file_path)
+    exists = os.path.exists(full_path)
+    return {"exists": exists}
 
 
 @app.get("/get_all_file_paths")
