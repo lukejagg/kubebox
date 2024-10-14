@@ -224,18 +224,47 @@ class SandboxClient:
                     return await response.text()
                 else:
                     raise Exception(f"Failed to get file: {response.status}")
-                
-    async def write_file(self, session_id: str, file_path: str, content: str):
+
+    async def write_file(
+        self, session_id: str, file_path: str, content: str, make_dirs: bool = False
+    ):
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.url}/write_file",
-                json={"session_id": session_id, "file_path": file_path, "content": content},
+                json={
+                    "session_id": session_id,
+                    "file_path": file_path,
+                    "content": content,
+                    "make_dirs": make_dirs,
+                },
             ) as response:
                 if response.status == 200:
                     return await response.json()
                 else:
                     raise Exception(f"Failed to write file: {response.status}")
-                
+
+    async def make_dirs(self, session_id: str, file_path: str):
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.url}/make_dirs",
+                json={"session_id": session_id, "file_path": file_path},
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"Failed to make dirs: {response.status}")
+
+    async def delete_file(self, session_id: str, file_path: str):
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.url}/delete_file",
+                json={"session_id": session_id, "file_path": file_path},
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"Failed to delete file: {response.status}")
+
     async def file_exists(self, session_id: str, file_path: str) -> bool:
         async with aiohttp.ClientSession() as session:
             async with session.get(
@@ -243,9 +272,13 @@ class SandboxClient:
                 params={"session_id": session_id, "file_path": file_path},
             ) as response:
                 if response.status == 200:
-                    return await response.json()
+                    return await bool(response.json()["exists"])
+                elif response.status == 404:
+                    return False
                 else:
-                    raise Exception(f"Failed to check if file exists: {response.status}")
+                    raise Exception(
+                        f"Failed to check if file exists: {response.status}"
+                    )
 
     async def get_all_file_paths(self, session_id: str) -> list[str]:
         async with aiohttp.ClientSession() as session:
@@ -262,7 +295,7 @@ class SandboxClient:
 if __name__ == "__main__":
 
     async def main():
-        client = SandboxClient(url="http://localhost:80")
+        client = SandboxClient(url="http://4.156.80.55:80")
         await client.connect()
 
         # Initialize a session
@@ -279,6 +312,20 @@ if __name__ == "__main__":
             "your-session-id-here", "ls -la", mode=CommandMode.WAIT, path="test_path"
         )
         print(result.stdout)
+
+        result = await client.file_exists("your-session-id-here", "test_path/LICENSE")
+        print(result)
+
+        result = await client.get_file("your-session-id-here", "test_path/LICENSE")
+        print(result)
+
+        result = await client.write_file(
+            "your-session-id-here", "test_path/LICENSE", "Hello, World!"
+        )
+        print(result)
+
+        result = await client.read_file("your-session-id-here", "test_path/LICENSE")
+        print(result)
 
         result = await client.run_command(
             "your-session-id-here",

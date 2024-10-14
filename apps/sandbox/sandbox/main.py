@@ -384,15 +384,39 @@ async def get_file(session_id: str, file_path: str):
 
 
 @app.post("/write_file")
-async def write_file(session_id: str, file_path: str, content: str):
+async def write_file(session_id: str, file_path: str, content: str, make_dirs: bool = False):
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=400, detail="Session not found")
 
     full_path = os.path.join(session.path, file_path)
+    if make_dirs:
+        os.makedirs(full_path, exist_ok=True)
     with open(full_path, "w") as f:
         f.write(content)
 
+    return {"status": "success"}
+
+
+@app.post("/make_dirs")
+async def make_dirs(session_id: str, file_path: str):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    full_path = os.path.join(session.path, file_path)
+    os.makedirs(full_path, exist_ok=True)
+    return {"status": "success"}
+
+
+@app.post("/delete_file")
+async def delete_file(session_id: str, file_path: str):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    full_path = os.path.join(session.path, file_path)
+    os.remove(full_path)
     return {"status": "success"}
 
 
