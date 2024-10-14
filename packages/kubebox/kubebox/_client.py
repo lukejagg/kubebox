@@ -280,11 +280,11 @@ class SandboxClient:
                         f"Failed to check if file exists: {response.status}"
                     )
 
-    async def get_all_file_paths(self, session_id: str) -> list[str]:
+    async def get_all_file_paths(self, session_id: str, regexes: list[str] = []) -> list[str]:
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"{self.url}/get_all_file_paths",
-                params={"session_id": session_id},
+                params={"session_id": session_id, "regexes": regexes},
             ) as response:
                 if response.status == 200:
                     return await response.json()

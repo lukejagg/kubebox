@@ -19,6 +19,7 @@ Todo:
 1. Update get_file to read_file, etc.
 """
 
+from typing import List
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from enum import Enum
@@ -28,6 +29,7 @@ import asyncio
 import uuid
 from fastapi.responses import FileResponse
 import os
+import re
 
 app = FastAPI()
 
@@ -432,7 +434,7 @@ async def file_exists(session_id: str, file_path: str):
 
 
 @app.get("/get_all_file_paths")
-async def get_all_file_paths(session_id: str):
+async def get_all_file_paths(session_id: str, regexes: List[str] = []):
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=400, detail="Session not found")
@@ -441,6 +443,7 @@ async def get_all_file_paths(session_id: str):
     for root, _, files in os.walk(session.path):
         for file in files:
             relative_path = os.path.relpath(os.path.join(root, file), session.path)
-            file_paths.append(relative_path)
+            if not regexes or any(re.search(regex, relative_path) for regex in regexes):
+                file_paths.append(relative_path)
 
     return file_paths
