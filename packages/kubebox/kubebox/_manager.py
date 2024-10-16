@@ -253,9 +253,13 @@ class Kubebox:
         namespace: str = "default",
         image: str = "lukejagg/sandbox:latest",
         username: str = None,
+        ports: list[int] = [],
         kubebox_public_key_secret_name: str = None,
         kubebox_public_key_key: str = None,
     ):
+        # The sandbox needs to listen on port 80 for the API
+        ports = [80] + ports
+        
         logging.info(
             f"Creating pod: {pod_name} in namespace: {namespace} with image: {image}"
         )
@@ -273,8 +277,9 @@ class Kubebox:
                     {
                         "name": pod_name,
                         "image": image,
+                        "ports": [{"containerPort": port} for port in ports],
                     }
-                ]
+                ],
             },
         }
         
@@ -300,6 +305,7 @@ class Kubebox:
         except ApiException as e:
             if e.status == 409:
                 logging.info(f"Pod {pod_name} already exists in namespace {namespace}")
+                logging.warning(f"Updating pod metadata currently not supported, please delete and recreate pod with `kubectl delete pod {pod_name} -n {namespace}`")
                 return KubeboxPod(pod_name, namespace, kubebox=self)
             else:
                 logging.error(f"Error creating pod {pod_name}: {e}")

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "kubebox"
-version = "0.0.8"
+version = "0.0.9"
 description = "Open source k8s sandbox for LLM agents"
 authors = ["Lucas Jaggernauth <lukejagg@gmail.com>"]
 readme = "README.md"
