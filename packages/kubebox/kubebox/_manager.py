@@ -366,7 +366,8 @@ class Kubebox:
                     f"Service {service_name} already exists in namespace {namespace}"
                 )
                 try:
-                    api_response = self._core_v1.replace_namespaced_service(
+                    # Patch the existing service (instead of replacing it)
+                    api_response = self._core_v1.patch_namespaced_service(
                         name=service_name, namespace=namespace, body=service_manifest
                     )
                     logging.info(f"Service {service_name} updated successfully")
