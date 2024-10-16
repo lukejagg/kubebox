@@ -257,7 +257,9 @@ class Kubebox:
         kubebox_public_key_secret_name: str = None,
         kubebox_public_key_key: str = None,
     ):
-        # The sandbox needs to listen on port 80 for the API
+        # The sandbox needs to listen on port 80 for the API. Currently unused as we expose all ports on the Docker image.
+        if 80 in ports:
+            raise Exception("Port 80 is reserved for the API and cannot be used by the sandbox.")
         ports = [80] + ports
         
         logging.info(
