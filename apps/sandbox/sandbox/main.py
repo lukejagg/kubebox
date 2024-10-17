@@ -21,7 +21,7 @@ Todo:
 """
 
 from typing import List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from enum import Enum
 import socketio
@@ -387,7 +387,13 @@ async def get_file(session_id: str, file_path: str):
 
 
 @app.post("/write_file")
-async def write_file(session_id: str, file_path: str, content: str, make_dirs: bool = False):
+async def write_file(request: Request):
+    data = await request.json()
+    session_id = data.get("session_id")
+    file_path = data.get("file_path")
+    content = data.get("content")
+    make_dirs = data.get("make_dirs", False)
+
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=400, detail="Session not found")
@@ -402,7 +408,11 @@ async def write_file(session_id: str, file_path: str, content: str, make_dirs: b
 
 
 @app.post("/make_dirs")
-async def make_dirs(session_id: str, file_path: str):
+async def make_dirs(request: Request):
+    data = await request.json()
+    session_id = data.get("session_id")
+    file_path = data.get("file_path")
+
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=400, detail="Session not found")
@@ -413,7 +423,11 @@ async def make_dirs(session_id: str, file_path: str):
 
 
 @app.post("/delete_file")
-async def delete_file(session_id: str, file_path: str):
+async def delete_file(request: Request):
+    data = await request.json()
+    session_id = data.get("session_id")
+    file_path = data.get("file_path")
+
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=400, detail="Session not found")
