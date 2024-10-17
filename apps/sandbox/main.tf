@@ -12,16 +12,16 @@ provider "azurerm" {
 
 # Step 2: Create a Resource Group
 resource "azurerm_resource_group" "aks_rg" {
-  name     = "myResourceGroup"
+  name     = "kubeboxResourceGroup"
   location = "East US"
 }
 
 # Step 3: Create the AKS Cluster
 resource "azurerm_kubernetes_cluster" "aks" {
-  name                = "myAKSCluster"
+  name                = "kubeboxAKSCluster"
   location            = azurerm_resource_group.aks_rg.location
   resource_group_name = azurerm_resource_group.aks_rg.name
-  dns_prefix          = "myakscluster"
+  dns_prefix          = "kubeboxakscluster"
 
   default_node_pool {
     name       = "default"
@@ -45,7 +45,7 @@ provider "kubernetes" {
 # Step 5: Create a Kubernetes Namespace
 resource "kubernetes_namespace" "example" {
   metadata {
-    name = "myapp"
+    name = "kubebox"
   }
 }
 
@@ -73,7 +73,7 @@ resource "kubernetes_secret" "docker_secret" {
 # Step 7: Create a Kubernetes Deployment
 resource "kubernetes_deployment" "myapp_deployment" {
   metadata {
-    name      = "myapp-deployment"
+    name      = "kubebox-deployment"
     namespace = kubernetes_namespace.example.metadata[0].name
   }
 
@@ -82,14 +82,14 @@ resource "kubernetes_deployment" "myapp_deployment" {
 
     selector {
       match_labels = {
-        app = "myapp"
+        app = "kubebox"
       }
     }
 
     template {
       metadata {
         labels = {
-          app = "myapp"
+          app = "kubebox"
         }
       }
 
@@ -99,7 +99,7 @@ resource "kubernetes_deployment" "myapp_deployment" {
         }
 
         container {
-          name  = "myapp-container"
+          name  = "kubebox-container"
           image = "lukejagg/sandbox:latest" # Replace with your Docker image
 
           port {
@@ -125,13 +125,13 @@ resource "kubernetes_deployment" "myapp_deployment" {
 # Step 8: Expose the Deployment via a Kubernetes Service
 resource "kubernetes_service" "myapp_service" {
   metadata {
-    name      = "myapp-service"
+    name      = "kubebox-service"
     namespace = kubernetes_namespace.example.metadata[0].name
   }
 
   spec {
     selector = {
-      app = "myapp"
+      app = "kubebox"
     }
 
     port {
