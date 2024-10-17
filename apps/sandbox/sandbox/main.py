@@ -400,7 +400,8 @@ async def write_file(request: Request):
 
     full_path = os.path.join(session.path, file_path)
     if make_dirs:
-        os.makedirs(full_path, exist_ok=True)
+        parent_dir = os.path.dirname(full_path)  # Get the parent directory
+        os.makedirs(parent_dir, exist_ok=True)  # Create directories for the parent
     with open(full_path, "w") as f:
         f.write(content)
 
