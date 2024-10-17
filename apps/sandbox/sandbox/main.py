@@ -17,6 +17,7 @@ Features:
 
 Todo:
 1. Update get_file to read_file, etc.
+2. Fix streaming so u can stream multiple commands (maybe an empty line in the kubebox client will cause streaming to end prematurely?)
 """
 
 from typing import List
