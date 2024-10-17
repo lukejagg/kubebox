@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install git, npm, pnpm, yarn, bun, ps, curl, and other development tools
 RUN apt-get update && \
-    apt-get install -y git npm procps curl wget && \
+    apt-get install -y git npm procps curl wget unzip && \
     npm install -g pnpm yarn && \
     curl -fsSL https://bun.sh/install | bash && \
     apt-get clean && \
