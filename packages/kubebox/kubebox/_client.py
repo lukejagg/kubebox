@@ -221,7 +221,7 @@ class SandboxClient:
                 params={"session_id": session_id, "file_path": file_path},
             ) as response:
                 if response.status == 200:
-                    return await response.text()
+                    return (await response.json())["content"]
                 else:
                     raise Exception(f"Failed to get file: {response.status}")
 
