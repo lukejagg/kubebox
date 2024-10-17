@@ -217,7 +217,7 @@ class SandboxClient:
     async def get_file(self, session_id: str, file_path: str) -> str:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                f"{self.url}/get_file",
+                f"{self.url}/read_file",
                 params={"session_id": session_id, "file_path": file_path},
             ) as response:
                 if response.status == 200:

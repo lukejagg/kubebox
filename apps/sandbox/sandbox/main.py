@@ -447,3 +447,21 @@ async def get_all_file_paths(session_id: str, regexes: List[str] = []):
                 file_paths.append(relative_path)
 
     return file_paths
+
+@app.get("/read_file")
+async def read_file(session_id: str, file_path: str):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="Session not found")
+
+    print(f"Reading file {file_path} from session {session_id}")
+    full_path = os.path.join(session.path, file_path)
+    if not os.path.isfile(full_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        with open(full_path, "r") as file:
+            content = file.read()
+        return {"content": content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
