@@ -12,6 +12,7 @@ import time  # Ensure this import is at the top of the file
 from typing import Optional, Tuple  # Added logging package
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+import os  # Add this import at the top of the file
 
 
 class KubeboxPodExistsError(Exception):
@@ -409,6 +410,7 @@ class Kubebox:
 
             # Write the kubeconfig to a temporary file
             kubeconfig_path = "/tmp/kubeconfig"
+            os.makedirs(os.path.dirname(kubeconfig_path), exist_ok=True)
             with open(kubeconfig_path, "w") as f:
                 f.write(kube_config)
 
@@ -419,6 +421,7 @@ class Kubebox:
             config.load_kube_config(config_file=kubeconfig_path)
         elif kubebox_str:
             kubeconfig_path = "/tmp/kubeconfig"
+            os.makedirs(os.path.dirname(kubeconfig_path), exist_ok=True)
             with open(kubeconfig_path, "w") as f:
                 f.write(kubebox_str)
             config.load_kube_config(config_file=kubeconfig_path)
