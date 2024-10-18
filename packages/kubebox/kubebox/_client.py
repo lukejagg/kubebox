@@ -57,13 +57,29 @@ class BackgroundProcess(BaseModel):
     process_id: Union[str, int]
 
 
+class StreamProcess:
+    def __init__(self, process_id: int, stream_queue: asyncio.Queue):
+        self.process_id = process_id
+        self.stream_queue = stream_queue
+
+    async def stream(self) -> AsyncIterator[CommandOutput]:
+        while True:
+            output = await self.stream_queue.get()
+            if output is None:  # End of stream
+                break
+            yield output
+            
+    def __aiter__(self):
+        return self.stream()
+
+
 class SandboxClient:
     def __init__(self, url: str = "http://localhost:80"):
         self.url = url
         self.sio = socketio.AsyncClient()
         self.sessions = {}
         self.initialized_event = asyncio.Event()
-        self.stream_queue = asyncio.Queue()
+        self.stream_queues: dict[int, asyncio.Queue] = {}
         self.result_event = asyncio.Event()
         self.result_data = None
 
@@ -89,14 +105,15 @@ class SandboxClient:
         self.initialized_event.set()
 
     async def on_command_output(self, data):
-        await self.stream_queue.put(CommandOutput(**data))
+        data = CommandOutput(**data)
+        await self.stream_queues[data.process_id].put(data)
 
     async def on_command_exit(self, data):
         exit_info = CommandExit(**data)
         print(
             f"Command exited with code {exit_info.exit_code} (Process ID: {exit_info.process_id})"
         )
-        await self.stream_queue.put(None)  # Signal the end of the stream
+        await self.stream_queues[exit_info.process_id].put(None)  # Signal the end of the stream
 
     async def on_command_result(self, data):
         self.result_data = CommandResult(**data)
@@ -136,7 +153,8 @@ class SandboxClient:
         mode: CommandMode = CommandMode.STREAM,
         path: Optional[str] = None,
         timeout: Optional[int] = None,
-    ) -> Union[AsyncIterator[CommandOutput], CommandResult, BackgroundProcess]:
+    ) -> Union[CommandResult, BackgroundProcess, StreamProcess]:
+        print(f"Running command: {command}, mode: {mode}, path: {path}, timeout: {timeout}")
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.url}/run_command",
@@ -152,22 +170,16 @@ class SandboxClient:
 
         if mode == CommandMode.STREAM:
             process_id = result["process_id"]
+            self.stream_queues[process_id] = asyncio.Queue()
             await self.sio.emit(
                 "start_command_stream",
                 {"session_id": session_id, "process_id": process_id},
             )
-            return self._stream_output()
+            return StreamProcess(process_id, self.stream_queues[process_id])
         elif mode == CommandMode.WAIT:
             return CommandResult(**result)
         elif mode == CommandMode.BACKGROUND:
             return BackgroundProcess(process_id=result["process_id"])
-
-    async def _stream_output(self) -> AsyncIterator[CommandOutput]:
-        while True:
-            output = await self.stream_queue.get()
-            if output is None:  # End of stream
-                break
-            yield output
 
     async def check_status(self, session_id: str, process_id: str) -> Status:
         # Create an event to wait for the status response

@@ -8,6 +8,7 @@ from ._client import (
     CommandKilled,
     CommandError,
     BackgroundProcess,
+    StreamProcess,
 )
 
 from ._manager import (
@@ -27,6 +28,7 @@ __all__ = [
     "CommandKilled",
     "CommandError",
     "BackgroundProcess",
+    "StreamProcess",
     "Kubebox",
     "KubeboxPod",
     "KubeboxService",
