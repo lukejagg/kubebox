@@ -106,7 +106,7 @@ class SandboxClient:
 
     async def on_command_output(self, data):
         data = CommandOutput(**data)
-        await self.stream_queues[data.process_id].put(data)
+        await self.get_stream_queue(data.process_id).put(data)
 
     async def on_command_exit(self, data):
         exit_info = CommandExit(**data)
@@ -146,6 +146,12 @@ class SandboxClient:
         await self.sio.emit("initialize", {"session_id": session_id})
         await self.initialized_event.wait()
 
+    def get_stream_queue(self, process_id: int) -> asyncio.Queue:
+        process_id = int(process_id)
+        if process_id not in self.stream_queues:
+            self.stream_queues[process_id] = asyncio.Queue()
+        return self.stream_queues[process_id]
+
     async def run_command(
         self,
         session_id: str,
@@ -170,12 +176,12 @@ class SandboxClient:
 
         if mode == CommandMode.STREAM:
             process_id = result["process_id"]
-            self.stream_queues[process_id] = asyncio.Queue()
+            stream_queue = self.get_stream_queue(process_id)
             await self.sio.emit(
                 "start_command_stream",
                 {"session_id": session_id, "process_id": process_id},
             )
-            return StreamProcess(process_id, self.stream_queues[process_id])
+            return StreamProcess(process_id, stream_queue)
         elif mode == CommandMode.WAIT:
             return CommandResult(**result)
         elif mode == CommandMode.BACKGROUND:
