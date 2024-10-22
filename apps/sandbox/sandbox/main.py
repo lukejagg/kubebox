@@ -43,7 +43,10 @@ class SocketManager:
 
     def initialize(self, app: FastAPI):
         self.sio = socketio.AsyncServer(
-            async_mode="asgi", max_http_buffer_size=10_000_000, cors_allowed_origins="*"
+            async_mode="asgi",
+            max_http_buffer_size=10_000_000,
+            cors_allowed_origins="*",
+            ping_timeout=60,
         )
         self.socket_app = socketio.ASGIApp(socketio_server=self.sio)
         self.app = app
