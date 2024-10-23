@@ -26,7 +26,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
   default_node_pool {
     name       = "default"
     node_count = 2
-    vm_size    = "Standard_DS2_v2"
+    vm_size    = "Standard_DS3_v2"
+    temporary_name_for_rotation = "defaulttemp"
   }
 
   identity {
@@ -104,6 +105,17 @@ resource "kubernetes_deployment" "myapp_deployment" {
 
           port {
             container_port = 80
+          }
+
+          resources {
+            requests = {
+              cpu    = "1000m"
+              memory = "1024Mi"
+            }
+            limits = {
+              cpu    = "4000m"
+              memory = "4096Mi"
+            }
           }
         }
       }
