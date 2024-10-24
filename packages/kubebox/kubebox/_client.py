@@ -74,7 +74,8 @@ class StreamProcess:
 
 
 class SandboxClient:
-    def __init__(self, url: str = "http://localhost:80"):
+    def __init__(self, private_key: str, url: str = "http://localhost:80"):
+        self.private_key = private_key
         self.url = url
         self.sio = socketio.AsyncClient()
         self.sessions = {}

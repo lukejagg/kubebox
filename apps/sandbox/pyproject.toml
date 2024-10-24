@@ -11,10 +11,11 @@ fastapi = {extras = ["standard"], version = "^0.115.0"}
 uvicorn = "^0.31.1"
 python-socketio = {extras = ["client"], version = "^5.11.4"}
 fastapi-socketio = "^0.0.10"
+kubebox = "^0.0.14"
 
 
 [tool.poetry.group.dev.dependencies]
-kubernetes = "^31.0.0"
+kubernetes = "^30.0.0"
 
 [build-system]
 requires = ["poetry-core"]
