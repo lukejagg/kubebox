@@ -62,10 +62,11 @@ class StreamProcess:
         self.process_id = process_id
         self.stream_queue = stream_queue
 
-    async def stream(self) -> AsyncIterator[CommandOutput]:
+    async def stream(self) -> AsyncIterator[CommandOutput | CommandExit]:
         while True:
             output = await self.stream_queue.get()
-            if output is None:  # End of stream
+            if isinstance(output, CommandExit):
+                yield output
                 break
             yield output
             
@@ -114,7 +115,7 @@ class SandboxClient:
         print(
             f"Command exited with code {exit_info.exit_code} (Process ID: {exit_info.process_id})"
         )
-        await self.stream_queues[exit_info.process_id].put(None)  # Signal the end of the stream
+        await self.stream_queues[exit_info.process_id].put(exit_info)  # Signal the end of the stream
 
     async def on_command_result(self, data):
         self.result_data = CommandResult(**data)
