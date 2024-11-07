@@ -25,7 +25,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   default_node_pool {
     name       = "default"
-    node_count = 2
+    node_count = 4
     vm_size    = "Standard_DS3_v2"
     temporary_name_for_rotation = "defaulttemp"
   }
@@ -109,8 +109,8 @@ resource "kubernetes_deployment" "myapp_deployment" {
 
           resources {
             requests = {
-              cpu    = "1000m"
-              memory = "1024Mi"
+              cpu    = "4000m"
+              memory = "4096Mi"
             }
             limits = {
               cpu    = "4000m"
