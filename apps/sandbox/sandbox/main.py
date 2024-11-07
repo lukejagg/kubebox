@@ -31,6 +31,9 @@ import uuid
 from fastapi.responses import FileResponse
 import os
 import re
+from loguru import logger
+
+print = logger.info
 
 app = FastAPI()
 
@@ -263,6 +266,7 @@ async def start_command_stream(sid, data):
 
     async def stream_output():
         try:
+
             async def read_stream(stream, stream_type):
                 while True:
                     line = await stream.readline()
@@ -466,6 +470,7 @@ async def get_all_file_paths(session_id: str, regexes: List[str] = []):
                 file_paths.append(relative_path)
 
     return file_paths
+
 
 @app.get("/read_file")
 async def read_file(session_id: str, file_path: str):

@@ -12,6 +12,7 @@ uvicorn = "^0.31.1"
 python-socketio = {extras = ["client"], version = "^5.11.4"}
 fastapi-socketio = "^0.0.10"
 kubebox = "^0.0.14"
+loguru = "^0.7.2"
 
 
 [tool.poetry.group.dev.dependencies]
