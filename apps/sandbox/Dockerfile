@@ -8,9 +8,11 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y git npm procps curl wget unzip && \
     npm install -g pnpm yarn && \
-    curl -fsSL https://bun.sh/install | bash && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install bun
+RUN npm install -g bun
 
 # Install Poetry
 RUN pip install --no-cache-dir poetry
